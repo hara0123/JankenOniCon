@@ -5,6 +5,9 @@
 #include <MsTimer2.h>
 
 #include "ToJankenOniData.h"
+#include "EncoderToolAssistant.h"
+
+#define SERIAL_OUT_ENABLE 0 // 0 or 1、0にするとシリアル出力を無効にする（beginも実行しない）
 
 // 各ピン設定、プログラム中では高速化のためレジスタを直接操作する
 #define ENC_1A_PIN 4
@@ -35,9 +38,6 @@
 // TIMER_INTERVALが5[ms]なら1200回で1秒、72000回で1分
 #define TIMER_RESET_COUNT 72000 // 72000*5[ms]=60[s]ごとにカウンターをリセット
 
-#define ENCODER_COUNT_MIN -5
-#define ENCODER_COUNT_MAX 5
-int8_t count1Old = 0;
 uint8_t count1flag = 0;
 
 // Systemがmode4、Jumpがmode1に対応
@@ -49,6 +49,8 @@ enum class OperationMode
 EncoderTool::PolledEncoder enc1_;
 EncoderTool::PolledEncoder enc2_;
 EncoderTool::PolledEncoder enc3_;
+
+EncoderToolAssistant encAssistant[3] = {enc1_, enc2_, enc3_};
 
 void TimerFlash();
 
@@ -103,10 +105,6 @@ void setup() {
   enc2_.begin(ENC_2B_PIN, ENC_2A_PIN);
   enc3_.begin(ENC_3B_PIN, ENC_3A_PIN);
 
-  enc1_.setLimits(ENCODER_COUNT_MIN, ENCODER_COUNT_MAX);
-  enc2_.setLimits(-5,5, true);
-  enc3_.setLimits(0,10,true);
-
   pinMode(SIG_SAMD_BUSY_PIN, OUTPUT);
   pinMode(SIG_SAMD_DATA1_PIN, OUTPUT);
   pinMode(SIG_SAMD_DATA2_PIN, OUTPUT);
@@ -120,21 +118,22 @@ void setup() {
   swParam_ = 0xFFFF; // 上位8ビットは前フレームの値
   encStatus_ = 0x0; // 1エンコーダにつき2ビットで状態を表現、00:不変、01:up、10:down
 
-  Serial.begin(115200);
-  Keyboard.begin();
+  if(SERIAL_OUT_ENABLE)
+  {
+    Serial.begin(115200);
+    delay(100); // 安定するまでちょっと待ちたい
+  }
 
   mode_ = OperationMode::System;
   PinOutForSAMD(mode_);
+
+  Keyboard.begin();
 
   MsTimer2::start();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  enc1_.tick();
-  enc2_.tick();
-  enc3_.tick();
-
   if(switchReadQueue_)
   {
     switchReadQueue_ = false;
@@ -142,45 +141,17 @@ void loop() {
   }
 
   // ロータリーエンコーダの処理はキューではなくloop内で直接実行
-  if (enc1_.valueChanged())
-  {
-    int value = enc1_.getValue();
-    if(count1Old > value)
-    {
-      //Serial.println("-");
-      count1flag = 0x2;
-    }
-    else
-    {
-      //Serial.println("+");
-      count1flag = 0x1;
-    }
-    if(value == ENCODER_COUNT_MIN || value == ENCODER_COUNT_MAX)
-    {
-      enc1_.setValue(0);
-      count1Old = 0;
-    }
-    else
-    {
-      count1Old = value;
-    }
-    serialOutQueue_ = true;
-  }
+  DoEncoderReadProcess();
 
-  if (enc1_.valueChanged() || enc2_.valueChanged() || enc3_.valueChanged())
-  {
-    serialOutQueue_ = true;
-    keyboardOutQueue_ = true;
-    DoEncoderReadProcess();
-  }
-
+  // キーボード出力処理は入力処理の後ろで呼び出す
   if(keyboardOutQueue_)
   {
     keyboardOutQueue_ = false;
     DoKeyboardOutProcess();
   }
 
-  if(serialOutQueue_)
+  // シリアルモニターでの確認が不要であればコメントアウト
+  if(SERIAL_OUT_ENABLE && serialOutQueue_)
   {
     serialOutQueue_ = false;
     DoSerialOutProcess();
@@ -244,7 +215,7 @@ void DoSwitchReadProcess()
 
     serialOutQueue_ = true;
 
-    // モード変更はUnityに通知する必要がない
+    // モード変更はキーボード出力する必要がない
   }
 
   // パラメータ変更確認
@@ -257,6 +228,30 @@ void DoSwitchReadProcess()
 
 void DoEncoderReadProcess()
 {
+  enc1_.tick();
+  enc2_.tick();
+  enc3_.tick();
+
+  // encStatus_ = MSB-LSB: 0,0,Enc3b1,Enc3b0,Enc2b1,Enc2b0,Enc1b1,Enc1b0
+  // 1エンコーダにつき2ビットで状態を表現、00:不変、01:up、10:down
+
+  for(int i = 0; i < 3; i++)
+  {
+    int8_t status = encAssistant[i].GetStatus();
+    encStatus_ &= ~(0x3 << 2 * i);
+    if(status == -1)
+    {
+      encStatus_ |= 0x2 << 2 * i;
+      keyboardOutQueue_ = true; // 上書き
+      serialOutQueue_ = true;
+    }
+    else if(status == 1)
+    {
+      encStatus_ |= 0x1 << 2 * i;
+      keyboardOutQueue_ = true; // 上書き
+      serialOutQueue_ = true;
+    }
+  }
 }
 
 void DoSerialOutProcess()
@@ -267,6 +262,7 @@ void DoSerialOutProcess()
 
 void DoKeyboardOutProcess()
 {
+  // 文字セットの選択
   char* charSet = nullptr;
   switch(mode_)
   {
@@ -323,14 +319,35 @@ void DoKeyboardOutProcess()
   }
 
   // ロータリーエンコーダの処理
-  if(count1flag == 0x1)
+  // encStatus_ = MSB-LSB: 0,0,Enc3b1,Enc3b0,Enc2b1,Enc2b0,Enc1b1,Enc1b0
+  // 1エンコーダにつき2ビットで状態を表現、00:不変、01:up、10:down
+  for(uint8_t i = 0; i < 3; i++)
   {
-    char c = charSet[ENC1UP];
-    Keyboard.write(c);
-  }
-  else if(count1flag == 0x2)
-  {
-    char c = charSet[ENC1DN];
-    Keyboard.write(c);
+    uint8_t status = encStatus_ >> 2 * i & 0x3;
+    // エンコーダー文字のピックアップ
+    char cUp, cDown;
+    switch(i)
+    {
+      case 0:
+        cUp = charSet[ENC1UP];
+        cDown = charSet[ENC1DN];
+        break;
+      case 1:
+        cUp = charSet[ENC2UP];
+        cDown = charSet[ENC2DN];
+        break;
+      case 2:
+        cUp = charSet[ENC3UP];
+        cDown = charSet[ENC3DN];
+        break;
+    }
+    if(status == 0x1)
+    {
+      Keyboard.write(cUp);
+    }
+    else if(status == 0x2)
+    {
+      Keyboard.write(cDown);
+    }
   }
 }

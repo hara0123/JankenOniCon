@@ -1,7 +1,6 @@
 #ifndef __TO_JANKEN_ONI_DATA_H_
 #define __TO_JANKEN_ONI_DATA_H_
 
-#define MAX_MODE_NUM 4
 #define KINDS_OF_CHAR 12
 
 // ここから
