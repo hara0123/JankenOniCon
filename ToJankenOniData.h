@@ -21,10 +21,10 @@
 // モード1・2・3・4
 const char sendchar[][KINDS_OF_CHAR] =
 {
-  {'a','b','c','d','e','f','g','h','i','j','k','l'}, // system
-  {'m','n','o','p','q','r','s','t','u','v','w','x'}, // camera
-  {'y','z','A','B','C','D','E','F','G','H','I','J'}, // move
-  {'K','L','M','N','O','P','Q','R','S','T','U','V'}, // jump
+  {',','.','/','K','L',';','I','O','P','B','N','M'}, // Camera
+  {'m','n','o','p','q','r','s','t','u','v','w','x'}, // Move
+  {'y','z','A','B','C','D','E','F','G','H','I','J'}, // Dash
+  {'K','L','M','N','O','P','Q','R','S','T','U','V'}, // Jump
 };
 
 #endif
