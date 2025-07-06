@@ -43,7 +43,7 @@ uint8_t count1flag = 0;
 // Systemがmode4、Jumpがmode1に対応
 enum class OperationMode
 {
-  System, Camera, Move, Jump
+  Camera, Move, Dash, Jump
 };
 
 EncoderTool::PolledEncoder enc1_;
@@ -77,14 +77,14 @@ void PinOutForSAMD(OperationMode mode)
   switch(mode)
   {
     // 上位ビットPB0、下位ビットPB2
-    case OperationMode::System: // 00
+    case OperationMode::Camera: // 00
       PORTB &= ~0x5;
       break;
-    case OperationMode::Camera: // 01
+    case OperationMode::Move: // 01
       PORTB &= ~0x4;
       PORTB |= 0x1;
       break;
-    case OperationMode::Move:   // 10
+    case OperationMode::Dash:   // 10
       PORTB |= 0x4;
       PORTB &= ~0x1;
       break;
@@ -124,7 +124,7 @@ void setup() {
     delay(100); // 安定するまでちょっと待ちたい
   }
 
-  mode_ = OperationMode::System;
+  mode_ = OperationMode::Camera;
   PinOutForSAMD(mode_);
 
   Keyboard.begin();
@@ -196,15 +196,15 @@ void DoSwitchReadProcess()
     // SAMDボード向けにmodeを出力
     if(swMode_ & 0x8 && (swMode_ >> 4 & 0x8) == 0)
     {
-      mode_ = OperationMode::System;
+      mode_ = OperationMode::Camera;
     }
     else if(swMode_ & 0x4 && (swMode_ >> 4 & 0x4) == 0)
     {
-      mode_ = OperationMode::Camera;
+      mode_ = OperationMode::Move;
     }
     else if(swMode_ & 0x2 && (swMode_ >> 4 & 0x2) == 0)
     {
-      mode_ = OperationMode::Move;
+      mode_ = OperationMode::Dash;
     }
     else if(swMode_ & 0x1 && (swMode_ >> 4 & 0x1) == 0)
     {
@@ -264,19 +264,24 @@ void DoKeyboardOutProcess()
 {
   // 文字セットの選択
   char* charSet = nullptr;
+  uint8_t* modifierKeySet = nullptr;
   switch(mode_)
   {
-    case OperationMode::System:
-      charSet = sendchar[0];
-      break;
     case OperationMode::Camera:
-      charSet = sendchar[1];
+      charSet = sendChar[0];
+      modifierKeySet = sendModifierKey[0];
       break;
     case OperationMode::Move:
-      charSet = sendchar[2];
+      charSet = sendChar[1];
+      modifierKeySet = sendModifierKey[1];
+      break;
+    case OperationMode::Dash:
+      charSet = sendChar[2];
+      modifierKeySet = sendModifierKey[2];
       break;
     case OperationMode::Jump:
-      charSet = sendchar[3];
+      charSet = sendChar[3];
+      modifierKeySet = sendModifierKey[3];
       break;
   }
 
@@ -291,28 +296,47 @@ void DoKeyboardOutProcess()
         if((swParam_ >> 8 & 1 << i) == 1 << i && (swParam_ & 1 << i) == 0)
         {
           char c = 0;
+          uint8_t modifier = 0;
           switch(i)
           {
             case 0: // sw3
               c = charSet[PARAM_SW3];
+              modifier = modifierKeySet[PARAM_SW3];
               break;
             case 1: // sw2
               c = charSet[PARAM_SW2];
+              modifier = modifierKeySet[PARAM_SW2];
               break;
             case 4: // sw1
               c = charSet[PARAM_SW1];
+              modifier = modifierKeySet[PARAM_SW1];
               break;
             case 5: // Enc1sw
               c = charSet[ENC1SW];
+              modifier = modifierKeySet[ENC1SW];
               break;
             case 6: // Enc2sw
               c = charSet[ENC2SW];
+              modifier = modifierKeySet[ENC2SW];
               break;
             case 7: // Enc3sw
               c = charSet[ENC3SW];
+              modifier = modifierKeySet[ENC3SW];
               break;
           }
+          if(modifier & MODIFIER_BIT_S){
+            Keyboard.press(KEY_LEFT_SHIFT);
+          }
+          if(modifier & MODIFIER_BIT_C){
+            Keyboard.press(KEY_LEFT_CTRL);
+          }
+          if(modifier & MODIFIER_BIT_A){
+            Keyboard.press(KEY_LEFT_ALT);
+          }
           Keyboard.write(c);
+          if(modifier & MODIFIER_BIT_S || modifier & MODIFIER_BIT_C || modifier & MODIFIER_BIT_A){
+            Keyboard.releaseAll();
+          }
         }
       }
     }
@@ -326,28 +350,60 @@ void DoKeyboardOutProcess()
     uint8_t status = encStatus_ >> 2 * i & 0x3;
     // エンコーダー文字のピックアップ
     char cUp, cDown;
+    uint8_t modifierUp, modifierDown;
     switch(i)
     {
       case 0:
         cUp = charSet[ENC1UP];
         cDown = charSet[ENC1DN];
+        modifierUp = modifierKeySet[ENC1UP];
+        modifierDown = modifierKeySet[ENC1DN];
         break;
       case 1:
         cUp = charSet[ENC2UP];
         cDown = charSet[ENC2DN];
+        modifierUp = modifierKeySet[ENC2UP];
+        modifierDown = modifierKeySet[ENC2DN];
         break;
       case 2:
         cUp = charSet[ENC3UP];
         cDown = charSet[ENC3DN];
+        modifierUp = modifierKeySet[ENC3UP];
+        modifierDown = modifierKeySet[ENC3DN];
         break;
     }
+
     if(status == 0x1)
     {
+      if(modifierUp & MODIFIER_BIT_S){
+        Keyboard.press(KEY_LEFT_SHIFT);
+      }
+      if(modifierUp & MODIFIER_BIT_C){
+        Keyboard.press(KEY_LEFT_CTRL);
+      }
+      if(modifierUp & MODIFIER_BIT_A){
+        Keyboard.press(KEY_LEFT_ALT);
+      }
       Keyboard.write(cUp);
+      if(modifierUp & MODIFIER_BIT_S || modifierUp & MODIFIER_BIT_C || modifierUp & MODIFIER_BIT_A){
+        Keyboard.releaseAll();
+      }
     }
     else if(status == 0x2)
     {
+      if(modifierDown & MODIFIER_BIT_S){
+        Keyboard.press(KEY_LEFT_SHIFT);
+      }
+      if(modifierDown & MODIFIER_BIT_C){
+        Keyboard.press(KEY_LEFT_CTRL);
+      }
+      if(modifierDown & MODIFIER_BIT_A){
+        Keyboard.press(KEY_LEFT_ALT);
+      }
       Keyboard.write(cDown);
+      if(modifierDown & MODIFIER_BIT_S || modifierDown & MODIFIER_BIT_C || modifierDown & MODIFIER_BIT_A){
+        Keyboard.releaseAll();
+      }
     }
   }
 }
