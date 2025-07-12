@@ -21,10 +21,10 @@
 // モード1・2・3・4
 const char sendChar[][KINDS_OF_CHAR] =
 {
-  {',','.','/','K','L',';','I','O','P','B','N','M'}, // Camera
-  {',','.','/','K','L',';','I','O','P','B','N','M'}, // Move
-  {',','.','/','K','L',';','I','O','P','B','N','M'}, // Dash
-  {',','.','/','K','L',';','I','O','P','B','N','M'}, // Jump
+  {',','.','/','K','L','J','I','O','P','B','N','M'}, // Camera
+  {',','.','/','K','L','J','I','O','P','B','N','M'}, // Move
+  {',','.','/','K','L','J','I','O','P','B','N','M'}, // Dash
+  {',','.','/','K','L','J','I','O','P','B','N','M'}, // Jump
 };
 
 #define MODIFIER_BIT_NONE 0
@@ -33,7 +33,7 @@ const char sendChar[][KINDS_OF_CHAR] =
 #define MODIFIER_BIT_A 4
 
 // 各モードでShiftキー・Ctrlキー・Altキーを押すかどうか
-// .：修飾キーなし、S：Shiftキー併用、C：Ctrlキー併用、A：Altキー併用
+// 0：修飾キーなし、1：Shiftキー併用、2：Ctrlキー併用、3：Altキー併用
 const uint8_t sendModifierKey[][KINDS_OF_CHAR] =
 {
   {0,0,0,0,0,0,0,0,0,0,0,0}, // Camera

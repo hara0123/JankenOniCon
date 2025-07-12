@@ -34,9 +34,9 @@
 #define SIG_SAMD_DATA1_PIN 16 // PB2
 #define SIG_SAMD_DATA2_PIN 17 // PB0
 
-#define TIMER_INTERVAL 5 // 5[ms]ごとにスイッチを読む
-// TIMER_INTERVALが5[ms]なら1200回で1秒、72000回で1分
-#define TIMER_RESET_COUNT 72000 // 72000*5[ms]=60[s]ごとにカウンターをリセット
+#define TIMER_INTERVAL 5 // **[ms]ごとにスイッチを読む
+// TIMER_INTERVALが5[ms]なら1200回で1秒、72000回で1分、あ、コメント違うかも、後で直す
+#define TIMER_RESET_COUNT 72000
 
 uint8_t count1flag = 0;
 
@@ -334,6 +334,7 @@ void DoKeyboardOutProcess()
             Keyboard.press(KEY_LEFT_ALT);
           }
           Keyboard.write(c);
+          delay(10);
           if(modifier & MODIFIER_BIT_S || modifier & MODIFIER_BIT_C || modifier & MODIFIER_BIT_A){
             Keyboard.releaseAll();
           }
@@ -385,6 +386,7 @@ void DoKeyboardOutProcess()
         Keyboard.press(KEY_LEFT_ALT);
       }
       Keyboard.write(cUp);
+      delay(10);
       if(modifierUp & MODIFIER_BIT_S || modifierUp & MODIFIER_BIT_C || modifierUp & MODIFIER_BIT_A){
         Keyboard.releaseAll();
       }
@@ -401,6 +403,7 @@ void DoKeyboardOutProcess()
         Keyboard.press(KEY_LEFT_ALT);
       }
       Keyboard.write(cDown);
+      delay(10);
       if(modifierDown & MODIFIER_BIT_S || modifierDown & MODIFIER_BIT_C || modifierDown & MODIFIER_BIT_A){
         Keyboard.releaseAll();
       }
